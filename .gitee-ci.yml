@@ -1,47 +1,32 @@
-# Gitee Go CI 配置 - Android 自动编译
-# 每次 push 代码自动编译 Debug APK
-
 stages:
   - build
 
 variables:
+  GRADLE_USER_HOME: "$CI_PROJECT_DIR/.gradle"
   GRADLE_OPTS: "-Dorg.gradle.daemon=false -Dorg.gradle.jvmargs=-Xmx4g"
-  ANDROID_COMPILE_SDK: "34"
-  ANDROID_BUILD_TOOLS: "34.0.0"
-  ANDROID_SDK_TOOLS: "11076708"
 
-before_script:
-  # 设置 JDK 17
-  - export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
-  - export PATH=$JAVA_HOME/bin:$PATH
-  - java -version
-  
-  # 下载 Android SDK
-  - mkdir -p /opt/android-sdk
-  - cd /opt/android-sdk
-  - wget -q https://dl.google.com/android/repository/commandlinetools-linux-${ANDROID_SDK_TOOLS}_latest.zip
-  - unzip -q commandlinetools-linux-${ANDROID_SDK_TOOLS}_latest.zip
-  - mkdir -p cmdline-tools/latest
-  - mv cmdline-tools/* cmdline-tools/latest/ 2>/dev/null || true
-  - export ANDROID_HOME=/opt/android-sdk
-  - export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools
-  
-  # 安装 SDK 组件
-  - yes | sdkmanager --licenses || true
-  - sdkmanager "platform-tools" "platforms;android-${ANDROID_COMPILE_SDK}" "build-tools;${ANDROID_BUILD_TOOLS}"
+cache:
+  key: "$CI_COMMIT_REF_NAME"
+  paths:
+    - .gradle/
 
-build_apk:
+build:
   stage: build
   image: openjdk:17-jdk
+  before_script:
+    - apt-get update -qq && apt-get install -y -qq wget unzip
+    - mkdir -p /opt/android-sdk/cmdline-tools
+    - wget -q https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -O /tmp/cmdline-tools.zip
+    - unzip -q /tmp/cmdline-tools.zip -d /opt/android-sdk/cmdline-tools/
+    - mv /opt/android-sdk/cmdline-tools/cmdline-tools /opt/android-sdk/cmdline-tools/latest
+    - export ANDROID_HOME=/opt/android-sdk
+    - export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools
+    - yes | sdkmanager --licenses || true
+    - sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0"
   script:
-    - cd $CI_PROJECT_DIR
-    - chmod +x ./gradlew
+    - chmod +x gradlew
     - ./gradlew assembleDebug --no-daemon --stacktrace
   artifacts:
-    name: "ADB_Audio_Transfer_$CI_COMMIT_SHA"
     paths:
-      - app/build/outputs/apk/debug/*.apk
+      - app/build/outputs/apk/debug/app-debug.apk
     expire_in: 30 days
-  only:
-    - master
-    - main
